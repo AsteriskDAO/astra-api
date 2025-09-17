@@ -1,0 +1,35 @@
+const mongoose = require('mongoose')
+const { v4: uuidv4 } = require('uuid')
+
+const profileSchema = new mongoose.Schema({
+  age_range: { type: String, enum: ['18-20', '20-25', '25-30', '30-35', '35-40', '40-45', '45-50', '50+'] },
+  ethnicity: String,
+  location: String,
+  is_pregnant: Boolean
+})
+
+const healthDataSchema = new mongoose.Schema({
+  schema_version: { type: String, default: 'v1', enum: ['v1'], required: true },
+  healthDataId: { type: String, required: true, unique: true },
+  user_hash: { type: String, required: true },
+  research_opt_in: { type: Boolean, default: false },
+  profile: profileSchema,
+  conditions: { type: [String] },
+  medications: { type: [String] },
+  treatments: { type: [String] },
+  caretaker: { type: [String] },
+  timestamp: { type: Date, default: Date.now }
+})
+
+healthDataSchema.statics.createHealthData = async function(healthData) {
+  const newHealthDataId = uuidv4()
+  const newHealthData = new this({
+    ...healthData,
+    healthDataId: newHealthDataId
+  })
+  return newHealthData.save()
+}
+
+module.exports = mongoose.model('HealthData', healthDataSchema)
+
+
