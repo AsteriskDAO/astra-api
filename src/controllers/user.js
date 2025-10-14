@@ -71,6 +71,48 @@ class UserController {
     }
   }
 
+  async getNotificationSettings(req, res) {
+    try {
+      // Find user by authenticated email
+      const user = await User.findOne({ email: req.user.email })
+      if (!user) return res.status(404).json({ error: 'User not found' })
+      const notification = await Notification.findOne({ user_id: user.user_id })
+      if (!notification) {
+        const created = await Notification.createNotification(user.user_id)
+        return res.json(created)
+      }
+      return res.json(notification)
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to get notification settings' })
+    }
+  }
+
+  async updateNotificationSettings(req, res) {
+    try {
+      const allowedFields = ['reminder_schedule', 'reminder_days', 'reminder_time', 'email_notifications', 'substack', 'is_active', 'scheduled_time', 'type']
+      const updates = {}
+      for (const key of allowedFields) {
+        if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+          updates[key] = req.body[key]
+        }
+      }
+
+      const user = await User.findOne({ email: req.user.email })
+      if (!user) return res.status(404).json({ error: 'User not found' })
+
+      let notification = await Notification.findOne({ user_id: user.user_id })
+      if (!notification) {
+        notification = await Notification.createNotification(user.user_id)
+      }
+
+      Object.assign(notification, updates)
+      notification.updated_at = new Date()
+      await notification.save()
+      return res.json(notification)
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to update notification settings' })
+    }
+  }
   async verifyGender(req, res) {
     try {
       const { attestationId, proof, publicSignals, userContextData } = req.body

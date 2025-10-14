@@ -1,0 +1,552 @@
+openapi: 3.0.3
+info:
+  title: Asterisk Astra API
+  version: 1.0.0
+  description: |
+    REST API for authentication, users, health data, check-ins, and notification settings.
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: http://localhost:3000
+    description: Local
+tags:
+  - name: Auth
+  - name: Users
+  - name: CheckIns
+  - name: Notifications
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and obtain a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/{userHash}:
+    get:
+      tags: [Users]
+      summary: Get user by user hash
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: userHash
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithHealthData'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/update:
+    put:
+      tags: [Users]
+      summary: Update user and create a new HealthData snapshot
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithHealthDataUpdated'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/admin/sync-stats:
+    get:
+      tags: [Users]
+      summary: Get partner sync statistics
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncStats'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/verify-gender:
+    post:
+      tags: [Users]
+      summary: Verify user gender via proof
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyGenderRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  result:
+                    type: boolean
+                  credentialSubject:
+                    type: object
+                  userData:
+                    type: object
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/notifications/settings:
+    get:
+      tags: [Notifications]
+      summary: Get notification settings for current user
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [Notifications]
+      summary: Update notification settings for current user
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNotificationSettingsRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/checkins/{user_hash}:
+    post:
+      tags: [CheckIns]
+      summary: Create a check-in for a user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: user_hash
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  checkIn:
+                    $ref: '#/components/schemas/CheckIn'
+                  stats:
+                    type: object
+                    properties:
+                      totalCheckIns:
+                        type: integer
+                      currentStreak:
+                        type: integer
+                      longestStreak:
+                        type: integer
+                      streakHistory:
+                        type: array
+                        items:
+                          type: string
+        '400':
+          description: Already checked in today
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [CheckIns]
+      summary: Get check-ins for a user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: user_hash
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CheckIn'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        name: { type: string }
+        nickname: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          type: object
+          properties:
+            email: { type: string, format: email }
+            userHash: { type: string }
+
+    User:
+      type: object
+      properties:
+        user_id: { type: string }
+        telegram_id: { type: string }
+        user_hash: { type: string }
+        wallet_address: { type: string }
+        proof_of_passport_id: { type: string }
+        name: { type: string }
+        nickname: { type: string }
+        checkIns: { type: integer }
+        points: { type: integer }
+        lastCheckIn: { type: string, format: date-time }
+        currentStreak: { type: integer }
+        longestStreak: { type: integer }
+        streakHistory:
+          type: array
+          items: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        isGenderVerified: { type: boolean }
+        isRegistered: { type: boolean }
+        currentHealthDataId: { type: string, nullable: true }
+
+    UserWithHealthData:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            healthData:
+              $ref: '#/components/schemas/HealthData'
+
+    UserWithHealthDataUpdated:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            currentHealthDataId: { type: string }
+            healthData:
+              $ref: '#/components/schemas/HealthData'
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name: { type: string }
+        nickname: { type: string }
+        healthData:
+          $ref: '#/components/schemas/HealthDataInput'
+
+    Profile:
+      type: object
+      properties:
+        age_range:
+          type: string
+          enum: ['18-20', '20-25', '25-30', '30-35', '35-40', '40-45', '45-50', '50+']
+        ethnicity:
+          type: array
+          items: { type: string }
+        location: { type: string }
+        is_pregnant: { type: boolean }
+
+    Condition:
+      type: object
+      properties:
+        name: { type: string }
+        date_diagnosed: { type: string }
+        type:
+          type: string
+          enum: ['clinically diagnosed', 'self diagnosed', 'suspected']
+        status:
+          type: string
+          enum: ['Untreated', 'Treating', 'Remission', 'Resolved']
+        notes: { type: string }
+
+    Treatment:
+      type: object
+      properties:
+        name: { type: string }
+        start_date: { type: string }
+        location:
+          type: string
+          enum: ['Clinical', 'At home', 'Appt-based']
+        type: { type: string }
+        status:
+          type: string
+          enum: ['Ongoing', 'Completed', 'Paused', 'Discontinued']
+        frequency:
+          type: string
+          enum: ['Multiple times per day', 'Daily', 'Weekly', 'Biweekly', 'Monthly', 'Intermittent']
+        notes: { type: string }
+
+    HealthData:
+      type: object
+      properties:
+        schema_version:
+          type: string
+          enum: ['v1', 'v2']
+        healthDataId: { type: string }
+        user_hash: { type: string }
+        research_opt_in: { type: boolean }
+        profile:
+          $ref: '#/components/schemas/Profile'
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+        medications:
+          type: array
+          items: { type: string }
+        treatments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Treatment'
+        caretaker:
+          type: array
+          items: { type: string }
+        timestamp: { type: string, format: date-time }
+
+    HealthDataInput:
+      allOf:
+        - $ref: '#/components/schemas/HealthData'
+        - type: object
+          properties:
+            healthDataId:
+              readOnly: true
+
+    Notification:
+      type: object
+      properties:
+        user_id: { type: string }
+        type: { type: string, default: 'daily_checkin' }
+        scheduled_time: { type: string, description: Cron string }
+        reminder_schedule:
+          type: string
+          enum: ['daily', 'specific_days', 'weekly']
+        reminder_days:
+          type: array
+          items:
+            type: string
+            enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        reminder_time: { type: string, description: 'HH:mm local time' }
+        email_notifications: { type: boolean }
+        substack: { type: boolean }
+        last_sent: { type: string, format: date-time }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    UpdateNotificationSettingsRequest:
+      type: object
+      properties:
+        reminder_schedule:
+          type: string
+          enum: ['daily', 'specific_days', 'weekly']
+        reminder_days:
+          type: array
+          items:
+            type: string
+            enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        reminder_time: { type: string }
+        email_notifications: { type: boolean }
+        substack: { type: boolean }
+        is_active: { type: boolean }
+        scheduled_time: { type: string }
+        type: { type: string }
+
+    CheckIn:
+      type: object
+      properties:
+        schema_version:
+          type: string
+          enum: ['v1']
+        user_hash: { type: string }
+        timestamp: { type: string, format: date-time }
+        checkinId: { type: string }
+        mood: { type: string }
+        health_comment: { type: string }
+        doctor_visit: { type: boolean }
+        health_profile_update: { type: boolean }
+        anxiety_level: { type: integer }
+        anxiety_details: { type: string }
+        pain_level: { type: integer }
+        pain_details: { type: string }
+        fatigue_level: { type: integer }
+        fatigue_details: { type: string }
+
+    CheckInRequest:
+      type: object
+      properties:
+        mood: { type: string }
+        health_comment: { type: string }
+        doctor_visit: { type: boolean }
+        health_profile_update: { type: boolean }
+        anxiety_level: { type: integer }
+        anxiety_details: { type: string }
+        pain_level: { type: integer }
+        pain_details: { type: string }
+        fatigue_level: { type: integer }
+        fatigue_details: { type: string }
+
+security:
+  - bearerAuth: []
+
+
