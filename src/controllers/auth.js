@@ -4,7 +4,12 @@ const { createUserHash } = require('../utils/hash')
 const config = require('../config/config')
 
 const signToken = (user) => {
-  return jwt.sign({ id: user.user_id, email: user.email }, config.jwt.secret, { expiresIn: config.jwt.expiresIn })
+  // Handle users without email (migration users)
+  const payload = { id: user.user_id }
+  if (user.email) {
+    payload.email = user.email
+  }
+  return jwt.sign(payload, config.jwt.secret, { expiresIn: config.jwt.expiresIn })
 }
 
 class AuthController {
@@ -34,6 +39,40 @@ class AuthController {
       res.json({ token, user: { email: user.email, userHash: user.user_hash } })
     } catch (err) {
       res.status(500).json({ error: 'Login failed' })
+    }
+  }
+
+  async setEmailPassword(req, res) {
+    try {
+      const { user_hash, email, password } = req.body
+      
+      if (!user_hash || !email || !password) {
+        return res.status(400).json({ error: 'user_hash, email, and password are required' })
+      }
+
+      const user = await User.findOne({ user_hash })
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' })
+      }
+
+      if (user.isRegistered && user.email) {
+        return res.status(400).json({ error: 'User already has email/password set' })
+      }
+
+      await user.setEmailPassword(email, password)
+      const token = signToken(user)
+      
+      res.json({ 
+        token, 
+        user: { 
+          email: user.email, 
+          userHash: user.user_hash,
+          telegram_id: user.telegram_id 
+        },
+        message: 'Email and password set successfully'
+      })
+    } catch (err) {
+      res.status(400).json({ error: err.message })
     }
   }
 }

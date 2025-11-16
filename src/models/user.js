@@ -1,11 +1,14 @@
 const mongoose = require('mongoose')
+const bcrypt = require('bcryptjs')
 const { createUserHash } = require('../utils/hash')
 const { v4: uuidv4 } = require('uuid')
 
 const userSchema = new mongoose.Schema({
   user_id: { type: String, required: true, unique: true },
-  telegram_id: { type: String, required: true, unique: true },
+  telegram_id: { type: String, unique: true, sparse: true }, // Optional, sparse index allows multiple nulls
   user_hash: { type: String, required: true },
+  email: { type: String, unique: true, sparse: true }, // Optional, sparse index allows multiple nulls
+  password: { type: String }, // Hashed password, optional
   wallet_address: String,
   proof_of_passport_id: String,
   name: String,
@@ -92,6 +95,24 @@ userSchema.statics.createUser = async function(userData) {
   return user.save()
 }
 
+// Static method to create a user from migration (with pre-determined user_id and user_hash)
+userSchema.statics.createUserFromMigration = async function(migrationData) {
+  const { user_id, user_hash, telegram_id } = migrationData
+  
+  if (!user_id || !user_hash) {
+    throw new Error('user_id and user_hash are required for migration')
+  }
+  
+  const user = new this({
+    user_id,
+    user_hash,
+    telegram_id: telegram_id || null,
+    isRegistered: false
+  })
+
+  return user.save()
+}
+
 userSchema.statics.addPoints = async function(telegramId, points) {
   const user = await this.findOneAndUpdate(
     { telegram_id: telegramId },
@@ -134,6 +155,57 @@ userSchema.methods.rollbackCheckIn = async function() {
   this.checkIns = Math.max(0, (this.checkIns || 0) - 1)
   this.points = Math.max(0, (this.points || 0) - 1)
   await this.save()
+}
+
+// Method to compare password
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  if (!this.password) return false
+  return await bcrypt.compare(candidatePassword, this.password)
+}
+
+// Static method to register a new user with email/password
+userSchema.statics.register = async function(userData) {
+  const { email, password, name, nickname, userHashGenerator } = userData
+  
+  // Check if email already exists
+  const existingUser = await this.findOne({ email })
+  if (existingUser) {
+    throw new Error('Email already registered')
+  }
+  
+  // Hash password
+  const hashedPassword = await bcrypt.hash(password, 10)
+  
+  // Generate user_id and hash
+  const newUserId = uuidv4()
+  const userHash = userHashGenerator ? userHashGenerator(newUserId) : createUserHash(newUserId)
+  
+  // Create user
+  const user = new this({
+    user_id: newUserId,
+    user_hash: userHash,
+    email,
+    password: hashedPassword,
+    name,
+    nickname,
+    isRegistered: true
+  })
+  
+  return user.save()
+}
+
+// Method to set email and password (for migration completion)
+userSchema.methods.setEmailPassword = async function(email, password) {
+  // Check if email is already taken by another user
+  const existingUser = await this.constructor.findOne({ email, _id: { $ne: this._id } })
+  if (existingUser) {
+    throw new Error('Email already registered')
+  }
+  
+  this.email = email
+  this.password = await bcrypt.hash(password, 10)
+  this.isRegistered = true
+  return this.save()
 }
 
 const User = mongoose.model('User', userSchema)
